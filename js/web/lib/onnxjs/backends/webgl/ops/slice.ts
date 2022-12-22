@@ -11,8 +11,9 @@ import {ProgramInfo, TextureType} from '../types';
 
 export interface SliceAttributes extends AttributeWithCacheKey {
   readonly axes: number[];
-  readonly ends: number[];
+  readonly ends?: number[];
   readonly starts: number[];
+  readonly reverse: boolean;
 }
 
 const sliceProgramMetadata = {
@@ -38,21 +39,26 @@ export const parseSliceAttributes: OperatorInitialization<SliceAttributes> = (no
   const starts = node.attributes.getInts('starts');
   const ends = node.attributes.getInts('ends');
   const axes = node.attributes.getInts('axes', []);
-  return createAttributeWithCacheKey({starts, ends, axes});
+  return createAttributeWithCacheKey({starts, ends, axes, reverse:false});
 };
 
-const createSliceProgramInfo =
-    (inferenceHandler: WebGLInferenceHandler, input: Tensor, attributes: SliceAttributes): ProgramInfo => {
+const createDynamicSliceProgramInfo =
+    (inferenceHandler: WebGLInferenceHandler, input: Tensor, ends: Tensor, attributes: SliceAttributes): ProgramInfo => {
       const axes = (attributes.axes.length === 0) ? input.dims.slice(0).map((val, i) => i) : attributes.axes;
       const normalizedAxes = ShapeUtil.normalizeAxes(axes, input.dims.length);
       const starts = attributes.starts.map((start, i) => {
-        if (start > input.dims[normalizedAxes[i]] - 1) {
+        if (attributes.reverse) {
+          return Math.min(Math.max(0, start), input.dims[normalizedAxes[i]] - 1);
+        } else if (start > input.dims[normalizedAxes[i]] - 1) {
           return input.dims[normalizedAxes[i]];
         }
         return ShapeUtil.normalizeAxis(start, input.dims[normalizedAxes[i]]);
       });
-      const ends = attributes.ends.map((end, i) => {
-        if (end > input.dims[normalizedAxes[i]] - 1) {
+      const dynamic_ends = Array.from(ends.integerData);
+      const updated_ends = dynamic_ends.map((end, i) => {
+        if (attributes.reverse) {
+          return Math.min(Math.max(-1, end), input.dims[normalizedAxes[i]] - 1);
+        } else if (end > input.dims[normalizedAxes[i]] - 1) {
           return input.dims[normalizedAxes[i]];
         }
         return ShapeUtil.normalizeAxis(end, input.dims[normalizedAxes[i]]);
@@ -62,9 +68,62 @@ const createSliceProgramInfo =
 
       const sliceOps: string[] = [];
       for (let i = 0; i < normalizedAxes.length; i++) {
-        outputShape[normalizedAxes[i]] = ends[i] - starts[i];
+        if (!attributes.reverse) {
+          outputShape[normalizedAxes[i]] = updated_ends[i] - starts[i];
+        }
         if (starts[i] > 0) {
           sliceOps.push(`outputIdx[${normalizedAxes[i]}] += ${starts[i]};`);
+        }  // else { sliceOps.push(`outputIdx[${normalizedAxes[i]}] += 0;`); }
+        if (attributes.reverse) {
+          sliceOps.push(`outputIdx[${normalizedAxes[i]}] = ${outputShape[normalizedAxes[i]]} - outputIdx[${normalizedAxes[i]}] - 1;`);
+        }  // else { sliceOps.push(`outputIdx[${normalizedAxes[i]}] += 0;`); }
+      }
+
+      const rank = outputShape.length;
+      const shaderSource = `
+      float process(int outputIdx[${rank}]) {
+        ${sliceOps.join('\n      ')}
+        return _A(outputIdx);
+      }`;
+      return {
+        ...sliceProgramMetadata,
+        output: {dims: outputShape, type: input.type, textureType: TextureType.unpacked},
+        shaderSource
+      };
+}
+const createSliceProgramInfo =
+    (inferenceHandler: WebGLInferenceHandler, input: Tensor, attributes: SliceAttributes): ProgramInfo => {
+      const axes = (attributes.axes.length === 0) ? input.dims.slice(0).map((val, i) => i) : attributes.axes;
+      const normalizedAxes = ShapeUtil.normalizeAxes(axes, input.dims.length);
+      const starts = attributes.starts.map((start, i) => {
+        if (attributes.reverse) {
+          return Math.min(Math.max(0, start), input.dims[normalizedAxes[i]] - 1);
+        } else if (start > input.dims[normalizedAxes[i]] - 1) {
+          return input.dims[normalizedAxes[i]];
+        }
+        return ShapeUtil.normalizeAxis(start, input.dims[normalizedAxes[i]]);
+      });
+      const ends = attributes.ends ? attributes.ends.map((end, i) => {
+        if (attributes.reverse) {
+          return Math.min(Math.max(-1, end), input.dims[normalizedAxes[i]] - 1);
+        } else if (end > input.dims[normalizedAxes[i]] - 1) {
+          return input.dims[normalizedAxes[i]];
+        }
+        return ShapeUtil.normalizeAxis(end, input.dims[normalizedAxes[i]]);
+      }) : [];
+
+      const outputShape = input.dims.slice();
+
+      const sliceOps: string[] = [];
+      for (let i = 0; i < normalizedAxes.length; i++) {
+        if (!attributes.reverse) {
+          outputShape[normalizedAxes[i]] = ends[i] - starts[i];
+        }
+        if (starts[i] > 0) {
+          sliceOps.push(`outputIdx[${normalizedAxes[i]}] += ${starts[i]};`);
+        }  // else { sliceOps.push(`outputIdx[${normalizedAxes[i]}] += 0;`); }
+        if (attributes.reverse) {
+          sliceOps.push(`outputIdx[${normalizedAxes[i]}] = ${outputShape[normalizedAxes[i]]} - outputIdx[${normalizedAxes[i]}] - 1;`);
         }  // else { sliceOps.push(`outputIdx[${normalizedAxes[i]}] += 0;`); }
       }
 
@@ -97,7 +156,13 @@ export const sliceV10 = (inferenceHandler: WebGLInferenceHandler, inputs: Tensor
       {
         ...sliceProgramMetadata,
         cacheHint: attributes.cacheKey,
-        get: () => createSliceProgramInfo(inferenceHandler, inputs[0], attributes)
+        get: () =>  {
+          if (!attributes.ends) {
+            return createDynamicSliceProgramInfo(inferenceHandler, inputs[0], inputs[2], attributes)
+          } else {
+            return createSliceProgramInfo(inferenceHandler, inputs[0], attributes)
+          }
+        }
       },
       [inputs[0]]);
   return [output];
@@ -106,21 +171,22 @@ export const sliceV10 = (inferenceHandler: WebGLInferenceHandler, inputs: Tensor
 const generateSliceAttributesFromInputs =
     (inferenceHandler: WebGLInferenceHandler, inputs: Tensor[]): SliceAttributes => {
       if (!inferenceHandler.session.isInitializer(inputs[1].dataId) ||
-          !inferenceHandler.session.isInitializer(inputs[2].dataId) ||
           (inputs.length >= 4 && !inferenceHandler.session.isInitializer(inputs[3].dataId)) ||
           (inputs.length >= 5 && !inferenceHandler.session.isInitializer(inputs[4].dataId))) {
-        throw new Error('dynamic slice attributes are not allowed');
+        throw new Error('dynamic slice attributes (besides ends) are not allowed');
       }
+      const dynamic_ends = !inferenceHandler.session.isInitializer(inputs[2].dataId);
 
-      if (inputs.length >= 5 && inputs[4].integerData.some((i: number) => i !== 1)) {
-        throw new Error('currently non-1 steps is not supported for Slice');
+      if (inputs.length >= 5 && inputs[4].integerData.some((i: number) => i !== 1 && i !== -1)) {
+        throw new Error(`currently non-1 steps is not supported for Slice, found ${Array.from(inputs[4].integerData)}`);
       }
 
       const starts = Array.from(inputs[1].integerData);
-      const ends = Array.from(inputs[2].integerData);
+      const ends = dynamic_ends ? undefined : Array.from(inputs[2].integerData);
       const axes = inputs.length >= 4 ? Array.from(inputs[3].integerData) : [];
+      const reverse = inputs.length >= 5 ? (Array.from(inputs[4].integerData)[0] === -1 ? true : false) : false;
       const cacheKey = `${axes};${starts};${ends}`;
-      return {starts, ends, axes, cacheKey};
+      return {starts, ends, axes, reverse, cacheKey};
     };
 
 const validateInputsV10 = (inputs: Tensor[]): void => {

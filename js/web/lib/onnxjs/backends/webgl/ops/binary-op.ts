@@ -174,9 +174,20 @@ function glslBuiltinBinary(fname: string): GlslValueFunction {
   const name = `${fname}_`;
   const body = `
   float ${name}(float a, float b) {
+    if (b == 2.0) {
+      return a * a;
+    }
     return ${fname}(a, b);
   }
   vec4 ${name}(vec4 v1, vec4 v2) {
+    if (v2.r == 2.0 && v2.g == 2.0 && v2.b == 2.0 && v2.a == 2.0) {
+      return vec4(
+        v1.r * v1.r,
+        v1.g * v1.g,
+        v1.b * v1.b,
+        v1.a * v1.a
+      );
+    }
     return ${fname}(v1, v2);
   }
   `;

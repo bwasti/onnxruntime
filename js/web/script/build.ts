@@ -56,7 +56,7 @@ function validateFile(path: string): void {
 }
 
 npmlog.info('Build.Bundle', 'Retrieving npm bin folder...');
-const npmBin = execSync('npm bin', {encoding: 'utf8'}).trimRight();
+const npmBin = path.join(execSync('npm root', {encoding: 'utf8'}).trimRight(), '.bin');
 npmlog.info('Build.Bundle', `Retrieving npm bin folder... DONE, folder: ${npmBin}`);
 
 if (WASM) {

@@ -100,13 +100,15 @@ export const parseUpsampleAttributes = (node: Graph.Node, opset: number): Upsamp
 
   if (opset > 10) {
     // handle when roiInput is not given
-    if (node.inputs.length > 2) {
+    if (node.inputs.length > 3) {
       roiInputIdx = 1;
       scalesInputIdx = 2;
       sizesInputIdx = 3;
-    } else {
+    } else if (node.inputs.length === 3) {
       scalesInputIdx = 1;
       sizesInputIdx = 2;
+    } else if (node.inputs.length === 2) {
+      sizesInputIdx = 1;
     }
   } else if (opset === 9) {
     scalesInputIdx = 1;

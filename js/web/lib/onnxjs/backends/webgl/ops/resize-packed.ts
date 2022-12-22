@@ -48,7 +48,7 @@ const createPackedResizeProgramInfo =
         return {
           ...resizeProgramMetadata,
           output: {dims: outputShape, type: inputs[0].type, textureType: TextureType.packed},
-          hasMain: true,
+         hasMain: true,
           shaderSource: `void main() {
                     vec4 v = ${glsl.texture2D}(X, TexCoords);
                     ${glsl.output} = v;
@@ -214,7 +214,7 @@ const prepareInputs = (inputs: Tensor[], attributes: UpsampleAttributes): [reado
   let outputSizes: number[]|undefined;
   if (scales.length === 0) {
     const scalesTensor = inputs[attributes.scalesInputIdx];
-    if (scalesTensor && scalesTensor.size !== 0) {
+    if (attributes.scalesInputIdx && scalesTensor && scalesTensor.size !== 0) {
       if (inputs[attributes.sizesInputIdx]) {
         throw new Error('Only one of scales or sizes must be provided as input.');
       }

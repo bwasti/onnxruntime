@@ -333,11 +333,11 @@ class GraphImpl implements Graph, Graph.Transformer {
       for (const input of nodeProto.input) {
         const dataIndex = dataIndices.get(input);
         if (typeof dataIndex === 'undefined') {
-          // handle exception when opset > 9 and roi not given
-          if (input === '' && nodeProto.input.length === 3 && nodeProto.opType === 'Resize') {
+          // handle exception when opset > 9 and roi not given HACK(bwasti)
+          if (input === '' && nodeProto.input.length === 4 && nodeProto.opType === 'Resize') {
             continue;
           }
-          throw new Error(`unrecognized input '${input}' for node: ${nodeProto.name}`);
+          throw new Error(`unrecognized input '${input}' for node: ${nodeProto.name} (${nodeProto.opType}, len: ${nodeProto.input.length})`);
         }
         node.inputs.push(dataIndex);
 

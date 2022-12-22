@@ -16,7 +16,7 @@ export interface ConcatAttributes extends AttributeWithCacheKey {
 
 export const concat: OperatorImplementation<ConcatAttributes> =
     (inferenceHandler: WebGLInferenceHandler, inputs: Tensor[], attributes: ConcatAttributes): Tensor[] => {
-      validateInputs(inputs);
+      validateInputs(inputs, inferenceHandler);
       if (inferenceHandler.session.pack && inputs[0].dims.length > 1) {
         const output =
             inferenceHandler.run(createPackedConcatProgramInfoLoader(inferenceHandler, inputs, attributes), inputs);
@@ -56,7 +56,7 @@ const createUnpackedConcatProgramInfo =
           }
           // ensure all non-cancatenated axes match each other
           else if (inputShape[axisIndex] !== dataNShape[axisIndex]) {
-            throw new Error('non concat dimensions must match');
+            throw new Error(`non concat dimensions must match, found input sizes ${inputShape} vs data sizes ${dataNShape} (mismatch at axis index ${axisIndex}, concat on axis ${axis})`);
           }
         }
       }
@@ -165,10 +165,11 @@ const getGetSizeInConcatAxisValueFromIndexMethod = (sizeInConcatAxis: number[]):
   return codeLines.join('\n');
 };
 
-export const parseConcatAttributes: OperatorInitialization<ConcatAttributes> = (node: Graph.Node): ConcatAttributes =>
-    createAttributeWithCacheKey({axis: node.attributes.getInt('axis')});
+export const parseConcatAttributes: OperatorInitialization<ConcatAttributes> = (node: Graph.Node): ConcatAttributes => {
+    return createAttributeWithCacheKey({axis: node.attributes.getInt('axis')});
+}
 
-const validateInputs = (inputs: Tensor[]): void => {
+const validateInputs = (inputs: Tensor[], inferenceHandler: WebGLInferenceHandler): void => {
   if (!inputs || inputs.length < 1) {
     throw new Error('too few inputs');
   }
@@ -181,11 +182,13 @@ const validateInputs = (inputs: Tensor[]): void => {
     throw new Error('string tensor is not supported yet');
   }
 
+  let i = 0;
   for (const input of inputs) {
     // make sure types of all inputs match
     if (input.type !== inputType) {
-      throw new Error('input tensors should be one type');
+      inputs[i] = inferenceHandler.cast(input, inputType);
     }
+    i++;
 
     // make sure the dimensionality of all inputs are the same
     if (input.dims.length !== inputDimensionality) {

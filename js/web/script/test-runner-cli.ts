@@ -50,7 +50,7 @@ if (shouldLoadSuiteTestData) {
 
 // The default backends and opset version lists. Those will be used in suite tests.
 const DEFAULT_BACKENDS: readonly TestRunnerCliArgs.Backend[] =
-    args.env === 'node' ? ['cpu', 'wasm'] : ['wasm', 'webgl'];
+    args.env === 'node' ? ['cpu', 'wasm'] : ['webgl'];
 const DEFAULT_OPSET_VERSIONS: readonly number[] = [13, 12, 11, 10, 9, 8, 7];
 
 const FILE_CACHE_ENABLED = args.fileCache;         // whether to enable file cache
@@ -410,7 +410,7 @@ function run(config: Test.Config) {
 
   // STEP 3. get npm bin folder
   npmlog.info('TestRunnerCli.Run', '(3/5) Retrieving npm bin folder...');
-  const npmBin = execSync('npm bin', {encoding: 'utf8'}).trimRight();
+  const npmBin = path.join(execSync('npm root', {encoding: 'utf8'}).trimRight(), '.bin');
   npmlog.info('TestRunnerCli.Run', `(3/5) Retrieving npm bin folder... DONE, folder: ${npmBin}`);
 
   // STEP 4. generate bundle

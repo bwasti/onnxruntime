@@ -423,8 +423,12 @@ function dataviewConstructor(type: Tensor.DataType) {
 function longToNumber(i: Long, type: onnx.TensorProto.DataType|ortFbs.TensorDataType): number {
   // INT64, UINT32, UINT64
   if (type === onnx.TensorProto.DataType.INT64 || type === ortFbs.TensorDataType.INT64) {
+    // assume int64 MIN -> int32 MIN
+    if (i.toNumber() === -9223372036854775807) {
+      return -2147483648
+    }
     if (i.greaterThanOrEqual(2147483648) || i.lessThan(-2147483648)) {
-      throw new TypeError('int64 is not supported');
+      throw new TypeError(`int64 is not supported, got: ${i}, which cannot be encoded as int32`);
     }
   } else if (
       type === onnx.TensorProto.DataType.UINT32 || type === ortFbs.TensorDataType.UINT32 ||

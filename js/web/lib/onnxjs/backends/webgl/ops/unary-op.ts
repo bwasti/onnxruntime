@@ -42,6 +42,20 @@ export function glslElu(alpha: number): GlslValueFunction {
   `;
   return {body, name, type: FunctionType.ValueBased};
 }
+export function glslShapeConstantOfShape(value: number): GlslValueFunction {
+  const name = '';
+  const body = `
+  const float value = float(${value});
+
+  float ${name}_(float a) {
+    return value;
+  }
+  vec4 ${name}_(vec4 v) {
+    return vec4(${name}_(v.x), ${name}_(v.y), ${name}_(v.z), ${name}_(v.w));
+  }
+  `;
+  return {body, name, type: FunctionType.ValueBased};
+}
 export function glslExp(): GlslValueFunction {
   return glslBuiltinUnary('exp');
 }
@@ -124,6 +138,18 @@ export function glslNot(): GlslValueFunction {
 }
 export function glslSin(): GlslValueFunction {
   return glslBuiltinUnary('sin');
+}
+export function glslReciprocal(): GlslValueFunction {
+  const name = 'reciprocal';
+  const body = `
+  float ${name}_(float a) {
+    return 1.0 / a;
+  }
+  vec4 ${name}_(vec4 v) {
+    return 1.0 / v;
+  }
+  `;
+  return {body, name, type: FunctionType.ValueBased};
 }
 export function glslRelu(): GlslValueFunction {
   const name = 'relu';
@@ -263,6 +289,18 @@ export const ceil = (handler: WebGLInferenceHandler, inputs: Tensor[]):
 export const cos = (handler: WebGLInferenceHandler, inputs: Tensor[]):
     Tensor[] => [handler.run(createElementwiseProgramInfoLoader(handler, inputs[0], glslCos()), inputs)];
 
+export interface ShapeConstantOfShapeAttributes extends AttributeWithCacheKey {
+  readonly value: number;
+}
+
+export const shapeConstantOfShape =
+    (handler: WebGLInferenceHandler, inputs: Tensor[], attributes: ShapeConstantOfShapeAttributes): Tensor[] => [handler.run(
+        createElementwiseProgramInfoLoader(handler, inputs[0], glslShapeConstantOfShape(attributes.value), attributes.cacheKey),
+        inputs)];
+
+export const parseShapeConstantOfShapeAttributes = (node: Graph.Node): ShapeConstantOfShapeAttributes =>
+    createAttributeWithCacheKey({value: node.attributes.getFloat('value', 1.0)});
+
 export interface EluAttributes extends AttributeWithCacheKey {
   readonly alpha: number;
 }
@@ -304,6 +342,9 @@ export const neg = (handler: WebGLInferenceHandler, inputs: Tensor[]):
 
 export const not = (handler: WebGLInferenceHandler, inputs: Tensor[]):
     Tensor[] => [handler.run(createElementwiseProgramInfoLoader(handler, inputs[0], glslNot()), inputs)];
+
+export const reciprocal = (handler: WebGLInferenceHandler, inputs: Tensor[]):
+    Tensor[] => [handler.run(createElementwiseProgramInfoLoader(handler, inputs[0], glslReciprocal()), inputs)];
 
 export const relu = (handler: WebGLInferenceHandler, inputs: Tensor[]):
     Tensor[] => [handler.run(createElementwiseProgramInfoLoader(handler, inputs[0], glslRelu()), inputs)];

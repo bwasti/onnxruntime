@@ -267,6 +267,7 @@
       "leaky-relu.jsonc",
       "reduce-min.jsonc",
       "relu.jsonc",
+      "reciprocal.jsonc",
       "pad.jsonc",
       "pad-big.jsonc",
       "pow.jsonc",

@@ -23,6 +23,10 @@ import {reshape} from './ops/reshape';
 import {parseResizeAttributesV10, parseResizeAttributesV11, resize} from './ops/resize-packed';
 import {shape} from './ops/shape';
 import {parseSliceAttributes, slice, sliceV10} from './ops/slice';
+import {expand} from './ops/expand';
+import {argmax} from './ops/argmax';
+
+import {where} from './ops/where';
 import {parseSoftmaxAttributes, parseSoftmaxAttributesV13, softmax, softmaxV13} from './ops/softmax';
 import {parseSplitAttributes, split} from './ops/split';
 import {parseSqueezeAttributes, squeeze, squeezeV13} from './ops/squeeze';
@@ -56,6 +60,7 @@ export const WEBGL_OP_RESOLVE_RULES: readonly OpSet.ResolveRule[] = [
   ['DepthToSpace', '', '1+', depthToSpace, parseDepthToSpaceAttributes],
   ['Equal', '', '7+', binaryOps.equal],
   ['Elu', '', '6+', unaryOps.elu, unaryOps.parseEluAttributes],
+  ['ShapeConstantOfShape', '', '6+', unaryOps.shapeConstantOfShape, unaryOps.parseShapeConstantOfShapeAttributes],
   ['Exp', '', '6+', unaryOps.exp],
   ['Flatten', '', '1+', flatten, parseFlattenAttributes],
   ['Floor', '', '6+', unaryOps.floor],
@@ -90,6 +95,7 @@ export const WEBGL_OP_RESOLVE_RULES: readonly OpSet.ResolveRule[] = [
   ['ReduceProd', '', '1+', reduceProd, parseReduceAttributes],
   ['ReduceSum', '', '1-12', reduceSum, parseReduceAttributes],
   ['ReduceSumSquare', '', '1+', reduceLogSumSquare, parseReduceAttributes],
+  ['Reciprocal', '', '7+', unaryOps.reciprocal],
   ['Relu', '', '6+', unaryOps.relu],
   ['Reshape', '', '5+', reshape],
   ['Resize', '', '10', resize, parseResizeAttributesV10],
@@ -99,6 +105,9 @@ export const WEBGL_OP_RESOLVE_RULES: readonly OpSet.ResolveRule[] = [
   ['Sin', '', '7+', unaryOps.sin],
   ['Slice', '', '10+', sliceV10],  // TODO: support 'steps' for Slice-10
   ['Slice', '', '1-9', slice, parseSliceAttributes],
+  ['Expand', '', '6+', expand],
+  ['Where', '', '6+', where],
+  ['ArgMax', '', '6+', argmax],
   // The "semantic" meaning of axis has changed in opset-13.
   ['Softmax', '', '1-12', softmax, parseSoftmaxAttributes],
   ['Softmax', '', '13+', softmaxV13, parseSoftmaxAttributesV13],
